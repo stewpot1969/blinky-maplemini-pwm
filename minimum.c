@@ -11,86 +11,76 @@ void SystemInit()
 #endif
 */
 
-static void tim_setup(void)
+static void io_setup(void)
 {
-	/* Enable TIM2 clock. */
-	rcc_periph_clock_enable(RCC_TIM2);
 
-	/* Enable TIM2 interrupt. */
-	nvic_enable_irq(NVIC_TIM2_IRQ);
-
-	/* Reset TIM2 peripheral to defaults. */
-	rcc_periph_reset_pulse(RST_TIM2);
-
-	/* Timer global mode:
-	 * - No divider
-	 * - Alignment edge
-	 * - Direction up
-	 * (These are actually default values after reset above, so this call
-	 * is strictly unnecessary, but demos the api for alternative settings)
-	 */
-	timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT,
-		TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
-
-	/*
-	 * Please take note that the clock source for STM32 timers
-	 * might not be the raw APB1/APB2 clocks.  In various conditions they
-	 * are doubled.  See the Reference Manual for full details!
-	 * In our case, TIM2 on APB1 is running at double frequency, so this
-	 * sets the prescaler to have the timer run at 5kHz
-	 */
-	//timer_set_prescaler(TIM2, (rcc_apb1_frequency / 5000));
-	timer_set_prescaler(TIM2,1600);
-
-	/* Disable preload. */
-	timer_disable_preload(TIM2);
-	timer_continuous_mode(TIM2);
-
-	/* count full range, as we'll update compare value continuously */
-	timer_set_period(TIM2, 65535);
-
-	/* Set the initual output compare value for OC1. */
-	timer_set_oc_value(TIM2, TIM_OC1, 1500);
-
-	/* Counter enable. */
-	timer_enable_counter(TIM2);
-
-	/* Enable Channel 1 compare interrupt to recalculate compare values */
-	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
+  
+	
+	/* PB1 (LED) alt function push/pull - TIM3_CH4 */
+	gpio_set_mode(GPIOB,
+	  GPIO_MODE_OUTPUT_2_MHZ,
+	  GPIO_CNF_OUTPUT_ALTFN_PUSHPULL,
+	  GPIO_TIM3_CH4);
+	
+	/* PB8 (button) input */
+	gpio_set_mode(GPIOB,
+	  GPIO_MODE_INPUT,
+	  GPIO_CNF_INPUT_FLOAT,
+	  GPIO8);
 }
 
-void tim2_isr(void)
+
+static void tim_setup(void)
 {
-	if (timer_get_flag(TIM2, TIM_SR_CC1IF)) {
+  uint16_t temp;
+  
+	/* Reset TIM3 peripheral to defaults. */
+	rcc_periph_reset_pulse(RST_TIM3);
 
-		/* Clear compare interrupt flag. */
-		timer_clear_flag(TIM2, TIM_SR_CC1IF);
+	/* Clock div and mode */
+	TIM_CR1(TIM3) = TIM_CR1_CKD_CK_INT | TIM_CR1_CMS_EDGE;
 
-    /* Set next interrupt time */
-		timer_set_oc_value(TIM2, TIM_OC1, timer_get_counter(TIM2) + 2500 );
-		
-		/* Toggle LED to indicate compare event. */
-    gpio_toggle(GPIOB,GPIO1);
-	}
+  /* Set PWM period */
+	TIM_ARR(TIM3) = 50000;
+	
+	/* Set PWM prescaler */
+	TIM_PSC(TIM3) = 1600;
+	
+  /* Enable preload (ref sec 14.3.9 p355) */
+	timer_enable_preload(TIM3);
+	
+	/* Set UG to load all regs (ref sec 14.3.9 p355, defs p384) */
+  TIM_EGR(TIM3) = TIM_EGR_UG;
+  
+  /* Set OC4 mode, preload */
+  TIM_CCMR2(TIM3) |= TIM_CCMR2_OC4M_PWM1 | TIM_CCMR2_OC4PE;
+  
+  /* Set OC4 polarity and state */
+  TIM_CCER(TIM3) |= TIM_CCER_CC4E;
+
+  /* Set Compare value */  
+  TIM_CCR4(TIM3)=100;
+  
+  /* ARR reload enable */
+  TIM_CR1(TIM3) |= TIM_CR1_ARPE;
+  
+	/* Counter enable. */
+	timer_enable_counter(TIM3);
+
 }
 
 int main(void)
 {  
   //rcc_clock_setup_in_hse_8mhz_out_72mhz();
-  
+
+  /* configure port B */
 	rcc_periph_clock_enable(RCC_GPIOB);
-	
-	/* PB1 (LED) output */
-	gpio_set_mode(GPIOB,GPIO_MODE_OUTPUT_2_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,GPIO1);
-	
-	/* PB8 (button) input */
-	gpio_set_mode(GPIOB,GPIO_MODE_INPUT,GPIO_CNF_INPUT_FLOAT,GPIO8);
-	
-	/* start with LED off */
-	gpio_clear(GPIOB,GPIO1);
+	/* Enable TIM3 clock. */
+	rcc_periph_clock_enable(RCC_TIM3);
+	rcc_periph_clock_enable(RCC_AFIO);
 
+  io_setup();
   tim_setup();
-
   while(1);
 }
 
