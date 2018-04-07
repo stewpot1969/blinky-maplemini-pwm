@@ -32,26 +32,21 @@ static void io_setup(void)
 
 static void tim_setup(void)
 {
-  uint16_t temp;
   
 	/* Reset TIM3 peripheral to defaults. */
 	rcc_periph_reset_pulse(RST_TIM3);
 
-	/* Clock div and mode */
-	TIM_CR1(TIM3) = TIM_CR1_CKD_CK_INT | TIM_CR1_CMS_EDGE;
+	/* Clock = CK_INT
+	  Edge aligned
+	  ARR preload enabled */
+	TIM_CR1(TIM3) = TIM_CR1_CKD_CK_INT | TIM_CR1_CMS_EDGE | TIM_CR1_ARPE;
 
   /* Set PWM period */
 	TIM_ARR(TIM3) = 50000;
 	
 	/* Set PWM prescaler */
-	TIM_PSC(TIM3) = 1600;
-	
-  /* Enable preload (ref sec 14.3.9 p355) */
-	timer_enable_preload(TIM3);
-	
-	/* Set UG to load all regs (ref sec 14.3.9 p355, defs p384) */
-  TIM_EGR(TIM3) = TIM_EGR_UG;
-  
+	TIM_PSC(TIM3) = 159;
+		  
   /* Set OC4 mode, preload */
   TIM_CCMR2(TIM3) |= TIM_CCMR2_OC4M_PWM1 | TIM_CCMR2_OC4PE;
   
@@ -60,10 +55,10 @@ static void tim_setup(void)
 
   /* Set Compare value */  
   TIM_CCR4(TIM3)=100;
-  
-  /* ARR reload enable */
-  TIM_CR1(TIM3) |= TIM_CR1_ARPE;
-  
+
+	/* Set UG to load all regs (ref sec 14.3.9 p355, defs p384) */
+  TIM_EGR(TIM3) = TIM_EGR_UG;
+    
 	/* Counter enable. */
 	timer_enable_counter(TIM3);
 
